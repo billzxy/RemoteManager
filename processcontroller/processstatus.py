@@ -1,13 +1,15 @@
+from misc.exceptions import UpdateIsNoGo
 from gui.winrt_toaster import toast_notification
 from misc.enumerators import FilePath
 from settings.settings_manager import SettingsManager
 from utils.my_logger import logger
-from misc.decorators import singleton
+from misc.decorators import singleton, with_retry
 import os
 import subprocess
 import traceback
 import psutil
 import time
+import datetime
 import webbrowser
 
 FREESWITCH_PROCESS_NAME = 'FreeSwitch'
@@ -20,14 +22,14 @@ class ProcessManager:
     def __init__(self):
         start = 'start'
         self.settings_manager = SettingsManager()
-        paths = self.settings_manager.get_paths()
-        self.fs_path = paths[FilePath.FS]
+        self.paths = self.settings_manager.get_paths()
+        # self.fs_path = self.paths[FilePath.FS]
         self.qthz_path = self.settings_manager.get_QTHZ_inst_path()
-        self.java_pid_file_path = paths[FilePath.JAVA_PID]
-        self.yaml_path = paths[FilePath.APP_YML]
-        self.config_path = paths[FilePath.CONFIG]
-        self.batch_file = paths[FilePath.PATH_BAT]
-        self.jar_path = paths[FilePath.JAR]
+        # self.java_pid_file_path = self.paths[FilePath.JAVA_PID]
+        # self.yaml_path = self.paths[FilePath.APP_YML]
+        # self.config_path = self.paths[FilePath.CONFIG]
+        # self.batch_file = self.paths[FilePath.PATH_BAT]
+        # self.jar_path = self.paths[FilePath.JAR]
 
     def start_QTHZ(self):
         self.logger.info("启动前置服务")
@@ -37,7 +39,7 @@ class ProcessManager:
             self.start_reload_freeswitch()
             self.start_reload_java()
             time.sleep(10)
-            webbrowser.open("http://127.0.0.1:18080")
+            webbrowser.open("http://127.0.0.1:18080/?time=%s"%str(int(datetime.datetime.now().timestamp() * 1000)))
         except Exception:
             self.logger.error(traceback.format_exc())
             return 0
@@ -52,7 +54,7 @@ class ProcessManager:
             self.start_java()
             time.sleep(10)
         
-        webbrowser.open("http://127.0.0.1:18080")
+        webbrowser.open("http://127.0.0.1:18080/?time=%s"%str(int(datetime.datetime.now().timestamp() * 1000)))
 
 # ========================= FREESWITCH management++++++++++++++++ 
 
@@ -69,7 +71,12 @@ class ProcessManager:
         else:
             return 1 if len(process) >= 1 else 0
               
-    
+    @with_retry(retries=3, interval=5)
+    def get_fs_call_status(self):
+        result = self.freeswith_call_status()
+        if(result):
+            raise UpdateIsNoGo("FreeSwitch仍有外呼任务在执行")
+
     def freeswith_call_status(self):
         status = self.is_freeswitch_running()
         if not status:
@@ -139,7 +146,7 @@ class ProcessManager:
         输出：fs重新加载的输出日志
         '''
         try:
-            proc = subprocess.check_output([f'{self.fs_path}\\fs_cli.exe', '-x', 'reload mod_sofia'], shell = True, stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            proc = subprocess.check_output([f'{self.paths[FilePath.FS]}\\fs_cli.exe', '-x', 'reload mod_sofia'], shell = True, stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError:
             self.logger.warn('reload mod_sofia returned nothing')
             return 
@@ -153,7 +160,7 @@ class ProcessManager:
         输出：
         '''
         try:
-            proc = subprocess.check_output([f'{self.fs_path}\\fs_cli.exe', '-x', 'shutdown'], shell = True, stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            proc = subprocess.check_output([f'{self.paths[FilePath.FS]}\\fs_cli.exe', '-x', 'shutdown'], shell = True, stdin=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError:
             self.logger.warn("fs_cli -x shutdown returned nothing")
             return 0
@@ -171,7 +178,7 @@ class ProcessManager:
 
     def start_freeswitch(self):
         try:
-            proc = subprocess.Popen([f'{self.fs_path}\\FreeSwitchConsole.exe', '-nc'], creationflags=subprocess.DETACHED_PROCESS)
+            proc = subprocess.Popen([f'{self.paths[FilePath.FS]}\\FreeSwitchConsole.exe', '-nc'], creationflags=subprocess.DETACHED_PROCESS)
         except Exception:
             self.logger.error(traceback.format_exc())
             return 0
@@ -193,7 +200,7 @@ class ProcessManager:
 # -------------------- JAVA management ----------------------
     def is_java_running(self):
         try:
-            with open(self.java_pid_file_path, 'r') as pid_file:
+            with open(self.paths[FilePath.JAVA_PID], 'r') as pid_file:
                 self.logger.debug("读取PID文件")
                 java_pid = pid_file.read().strip()
                 exists = psutil.pid_exists(int(java_pid))
@@ -232,7 +239,7 @@ class ProcessManager:
     def start_java(self):
         try:
             # popen 用列表传参数
-            order = ['java', '-jar', self.jar_path, f'--spring.config.location={self.yaml_path}']
+            order = ['java', '-jar', self.paths[FilePath.JAR], f'--spring.config.location={self.paths[FilePath.APP_YML]}']
             proc = subprocess.Popen(order, shell=False, creationflags=subprocess.DETACHED_PROCESS)
             self.update_java_pid(proc.pid)
             self.logger.debug("JAVA已启动, pid: %i", proc.pid)
@@ -250,7 +257,7 @@ class ProcessManager:
 
 
     def update_java_pid(self, pid):
-        with open(self.java_pid_file_path, "w", encoding="utf-8") as pid_file: 
+        with open(self.paths[FilePath.JAVA_PID], "w", encoding="utf-8") as pid_file: 
             pid_file.write(str(pid))
 
 
@@ -258,7 +265,7 @@ class ProcessManager:
         self.logger.debug('添加JAVA环境变量')
         try:
             p = subprocess.Popen(
-                ["cmd.exe", "/c", self.batch_file], 
+                ["cmd.exe", "/c", self.paths[FilePath.PATH_BAT]], 
                 # shell=True, 
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE, 
@@ -276,15 +283,15 @@ class ProcessManager:
 
     
     def update_jar_app_yaml(self):
-        config = self.settings_manager.read_ini_into_config(self.config_path)
-        yml_data = self.settings_manager.get_yaml_info(self.yaml_path)
+        config = self.settings_manager.read_ini_into_config(self.paths[FilePath.CONFIG])
+        yml_data = self.settings_manager.get_yaml_info(self.paths[FilePath.APP_YML])
         yml_data['appkey'] = "${APP_KEY:" + config["appkey"]["key"] + "}"
         yml_data['access-key-id'] = "${ACCESS_KEY_ID:" + config["accessid"]["id"] + "}"
         yml_data['access-key-secret'] = "${ACCESS_KEY_SECRET:" + config["accesssecret"]["secret"] + "}"
         yml_data['city-code'] = "${CITY_CODE:" + config["city"]["num"] + "}"
         yml_data['url-port'] = "${ICB-PORT:" + config["host"]["adr"] + "}"
         yml_data['spring']['datasource']['druid']['url'] = f'jdbc:sqlite:{self.qthz_path}\\data\\{config["dbfile"]["name"]}'
-        self.settings_manager.write_yaml_info(self.yaml_path, yml_data)
+        self.settings_manager.write_yaml_info(self.paths[FilePath.APP_YML], yml_data)
         self.logger.debug("修改JAR包Spring参数")
     
     
