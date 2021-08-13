@@ -60,8 +60,8 @@ class BoxRemoteManager:
         self.logger.debug("已启动自动版本检查, timer interval: %.1f secs", version_check_interval)
         self.timers.append(self.version_check_timer)
         
-        self.heartbeat_timer.start()
         self.version_check_timer.start()
+        self.heartbeat_timer.start()
         
     def exit_gracefully(self, fn_child_exit):
         for timer in self.timers:

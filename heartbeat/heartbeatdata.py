@@ -1,6 +1,6 @@
 from misc.enumerators import FS_Status, ThreadLock
 from request.request_manager import RequestManager
-from yamlmanager import GetYamlStruct
+from utils.yamlmanager import GetYamlStruct
 from processcontroller.processstatus import ProcessManager
 from processcontroller.systeminfo import getSystemInfo
 from conf.config import ConfigManager

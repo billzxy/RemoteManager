@@ -69,7 +69,7 @@ class APIManager():
         
         except Exception as e:
             self.error("File download failed...")
-            raise FileDownloadError(traceback.print_exc()) 
+            raise FileDownloadError(traceback.format_exc()) 
         
         return fname  
 
