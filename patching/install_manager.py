@@ -1,31 +1,24 @@
-from request.request_manager import RequestManager
-from misc.exceptions import UpdateIsNoGo
-from utils.db_operator import DBOperator
-from processcontroller.processstatus import ProcessManager
-from conf.config import ConfigManager
-from misc.enumerators import FilePath, PatchCyclePhase, PatchStatus, ThreadLock
-from settings.settings_manager import SettingsManager
-from misc.decorators import singleton, with_lock
+from misc.decorators import manager, with_lock
 from utils.my_logger import logger
+from misc.exceptions import UpdateIsNoGo
+from misc.enumerators import FilePath, PatchCyclePhase, PatchStatus, ThreadLock
 from pathlib import Path
 from os import listdir
 from os.path import isfile, join, exists, splitext
 from gui.winrt_toaster import toast_notification
 import shutil, traceback, time, sqlite3, threading, subprocess
 
-@singleton
+
+@manager
 @logger
 class InstallManager:
-    def __init__(self, patch_manager):
-        self.settings_manager = SettingsManager()
-        self.patch_manager = patch_manager
-        self.config_manager = ConfigManager()
-        self.process_manager = ProcessManager()
-        self.request_manager = RequestManager()
-        self.db_operator = DBOperator()
+    def __init__(self):
+        pass
+
+    def post_init(self):
         self.paths = self.settings_manager.get_paths()
         self.fnames = self.settings_manager.get_filenames()
-        patch_manager.load_meta()
+        self.patch_manager.load_meta()
         self.__check_self_update_follow_up()
     
     def clear_download_cache(self):

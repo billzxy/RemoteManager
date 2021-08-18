@@ -2,28 +2,26 @@ import logging, configparser, traceback, copy
 
 from PyQt5.QtCore import lowercasebase
 from processcontroller.processstatus import FREESWITCH_PROCESS_NAME
-from misc.decorators import singleton
-from settings.settings_manager import SettingsManager
+from misc.decorators import manager
 from conf.consts import CONFIG, REMOTE_CONF_MAPPING, XMLS, FS_CONF, FS_CONF_MAPPING
 from misc.enumerators import Envs, FilePath
 from utils.my_logger import logger
 from lxml import etree
 
-@singleton
+@manager
 @logger
-class ConfigManager():
-
+class ConfigManager:
     def __init__(self):
-        self.settings_manager = SettingsManager()
         # self.__host_address = CONFIG[self.env]['host_addr']
-        self.__host_address = self.settings_manager.get_host_addr()
-        self.__api_prefix = CONFIG[self.env]['api_prefix']
         self.tree_dict = {}
+        self.__api_prefix = CONFIG[self.env]['api_prefix']
         self.fs_conf = copy.deepcopy(FS_CONF)
-        self.paths = self.settings_manager.get_paths()
         # self.fs_conf_path = self.paths[FilePath.FS_CONF]
+
+    def post_init(self):
+        self.__host_address = self.settings_manager.get_host_addr()
+        self.paths = self.settings_manager.get_paths()
         self.load_config()
-        self.logger.debug('Config Manager successfully initialized...')
 
     def load_config(self):
         try:

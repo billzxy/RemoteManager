@@ -1,29 +1,25 @@
 import logging
-from patching.install_manager import InstallManager
-from settings.settings_manager import SettingsManager
-from misc.decorators import singleton, with_countdown, with_lock
-from conf.config import ConfigManager
-from request.request_manager import RequestManager
-from patching.patch_obj import PatchObject
+from misc.decorators import manager, with_countdown, with_lock
 from utils.my_logger import logger
+from patching.patch_obj import PatchObject
 from misc.enumerators import PatchStatus, ThreadLock, UpgradeMark, PatchCyclePhase
 from misc.exceptions import FileDownloadError, ICBRequestError, NoFileError
 from pathlib import Path
 from gui.winrt_toaster import toast_notification
 import os, jsonpickle, shutil, hashlib, traceback, zipfile, threading, time
 
-@singleton
+
+@manager
 @logger
 class PatchManager:
     def __init__(self):
-        self.reset_states()
         jsonpickle.set_decoder_options('json', encoding='utf8')
-        self.settings_manager = SettingsManager()
+        
+    def post_init(self):
+        self.reset_states()
         self.meta_file_path = self.settings_manager.get_patch_meta_path()
         self.patch_dir_path = self.settings_manager.get_patch_dir_path()
-        self.request_manager = RequestManager()
-        self.install_manager = InstallManager(self)
-
+        
     @with_lock(ThreadLock.INSTALL_UPDATE)
     @with_lock(ThreadLock.HEARTBEAT, blocking=True)
     def check_update(self):

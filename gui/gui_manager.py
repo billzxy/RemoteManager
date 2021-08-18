@@ -1,4 +1,5 @@
-from misc.decorators import singleton
+from settings.settings_manager import SettingsManager
+from misc.decorators import manager, singleton
 from utils.my_logger import logger
 from PyQt5.QtGui import * 
 from PyQt5.QtWidgets import * 
@@ -8,11 +9,11 @@ import traceback, threading, time
 
 @singleton
 @logger
-class GUIManager():
+class GUIManager:
     def __init__(self, **fns):
         self.app = QApplication([])
         self.app.setQuitOnLastWindowClosed(False)
-
+        self.settings_manager = SettingsManager()
 
         self.getUserTokenThread = None
         self.getVersionCheckThread = None
@@ -41,7 +42,7 @@ class GUIManager():
             sys_tray_fn_kwargs[key] = {'fn': self.threaded_execution_wrapper(fns[key]),
                 'kwargs': {'thread_instance': thread, 'thread_name': f"{key}Thread"}
             }
-        self.sysTray = SysTray(self.app, **sys_tray_fn_kwargs)
+        self.sysTray = SysTray(self.app, self, **sys_tray_fn_kwargs)
 
 
     def threaded_execution_wrapper(self, fn_action):

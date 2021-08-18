@@ -1,20 +1,17 @@
-from settings.settings_manager import SettingsManager
-from misc.decorators import singleton, with_retry
-from misc.enumerators import FilePath, GetTasksAPIType
-from conf.config import ConfigManager
-from request.encryption import EncryptionManager
-from misc.exceptions import HttpRequestError, ICBRequestError, FileDownloadError, NoFileError, NotFoundError
+from misc.decorators import manager, with_retry
 from utils.my_logger import logger
+from misc.enumerators import FilePath, GetTasksAPIType
+from misc.exceptions import HttpRequestError, ICBRequestError, FileDownloadError, NoFileError, NotFoundError
 
 import requests, json, shutil, traceback, datetime
 
-@singleton
+@manager
 @logger
-class APIManager():
+class APIManager:
     def __init__(self):
-        self.enc_manager = EncryptionManager()
-        self.settings_manager = SettingsManager()
-        self.config_manager = ConfigManager()
+        pass
+
+    def post_init(self):
         self.init_addresses()
     
     def init_addresses(self):
@@ -27,7 +24,7 @@ class APIManager():
         self.local_java_srv_port = yml_data['server']['port']
 
     def get_user_token(self, acc_id, acc_secret):
-        params = {"accesskeyId":acc_id, "accesskeySecret":acc_secret}
+        params = {"AccessKeyId":acc_id, "AccessKeySecret":acc_secret}
         url = self.__assemble_url("/getUserToken", "/gateway/token")
         self.logger.debug("GET user token: %s", url)
         data = self.__http_get(url, params)
@@ -38,10 +35,13 @@ class APIManager():
 
     def get_version_check(self, version_num):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
-        params = {'appkey':headers['appkey'], 'versionNum':version_num}
+        params = {
+            'appkey':headers['appkey'], 
+            'versionNum':version_num
+        }
         url = self.__assemble_url("/version/check")
         self.logger.debug("GET version check: %s", url)
         data = self.__http_get(url, params, headers)
@@ -51,10 +51,13 @@ class APIManager():
 
     def get_file_download(self, version_code, local_filename, fn_set_progress):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
-        params = {'appkey':headers['appkey'], 'versionCode':version_code}
+        params = {
+            'appkey':headers['appkey'],
+            'versionCode':version_code
+        }
         url = self.__assemble_url("/version/file")
         self.logger.debug("GET version file: %s", url)
         try:
@@ -89,7 +92,7 @@ class APIManager():
     @with_retry(retries=3, interval=5)
     def post_up_task_status(self, task_id_list, task_op_flag):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
         data = {
@@ -105,7 +108,7 @@ class APIManager():
 
     def post_heartbeat_info(self, heartbeat_info):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
         heartbeat_key_val_list = list(map(lambda tup: {'key': tup[0], 'value': tup[1]}, heartbeat_info.items()))
@@ -143,7 +146,7 @@ class APIManager():
         if not r.status_code == 200:
             raise HttpRequestError(r, r.text)
         raw = r.text
-        # decrypted = self.enc_manager.decrypt(raw)
+        # decrypted = self.encryption_manager.decrypt(raw)
         decrypted = raw
         try:
             parsed_dict = json.loads(decrypted)
@@ -158,7 +161,7 @@ class APIManager():
         if not r.status_code == 200:
             raise HttpRequestError(r, r.text)
         raw = r.text
-        decrypted = self.enc_manager.decrypt(raw)
+        decrypted = self.encryption_manager.decrypt(raw)
         try:
             parsed_dict = json.loads(decrypted)
         except json.decoder.JSONDecodeError:
@@ -176,7 +179,7 @@ class APIManager():
                 raise NotFoundError
             raise HttpRequestError(r, r.text)
         raw = r.text
-        # decrypted = self.enc_manager.decrypt(raw)
+        # decrypted = self.encryption_manager.decrypt(raw)
         decrypted = raw
         try:
             parsed_dict = json.loads(decrypted)

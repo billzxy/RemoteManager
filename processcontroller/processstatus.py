@@ -1,9 +1,8 @@
+from utils.my_logger import logger
+from misc.decorators import manager, with_retry
 from misc.exceptions import UpdateIsNoGo
 from gui.winrt_toaster import toast_notification
 from misc.enumerators import FilePath
-from settings.settings_manager import SettingsManager
-from utils.my_logger import logger
-from misc.decorators import singleton, with_retry
 import os
 import subprocess
 import traceback
@@ -16,12 +15,14 @@ FREESWITCH_PROCESS_NAME = 'FreeSwitch'
 JAVA_PROCESS_PORT = '18080'
 ICB_BOX_JAVA__PROC_NAME = 'java'
 
-@singleton
+
+@manager
 @logger
 class ProcessManager:
     def __init__(self):
         start = 'start'
-        self.settings_manager = SettingsManager()
+
+    def post_init(self):
         self.paths = self.settings_manager.get_paths()
         # self.fs_path = self.paths[FilePath.FS]
         self.qthz_path = self.settings_manager.get_QTHZ_inst_path()

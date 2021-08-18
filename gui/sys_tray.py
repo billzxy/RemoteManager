@@ -1,21 +1,17 @@
 import traceback
-from utils.db_operator import DBOperator
-from misc.decorators import singleton
-from settings.settings_manager import SettingsManager
+import pathlib, sys
 from utils.my_logger import logger
 from PyQt5.QtGui import * 
 from PyQt5.QtWidgets import * 
-import pathlib, sys
 
-@singleton
+
 @logger
-class SysTray():
-    def __init__(self, app, **executables):
+class SysTray:
+    def __init__(self, app, gui_manager, **executables):
         self.app = app
         curr_script_path = pathlib.Path(__file__).parent.absolute()
         # Adding an icon
-        self.settings = SettingsManager()
-        icon_path = ".\\resources\\fast.ico" if not self.settings.dev_mode else ".\\resources\\cogger.ico"
+        icon_path = ".\\resources\\fast.ico" if not gui_manager.settings_manager.dev_mode else ".\\resources\\cogger.ico"
         icon = QIcon(icon_path)
         # Adding item on the menu bar
         self.tray = QSystemTrayIcon()
@@ -28,7 +24,7 @@ class SysTray():
         # Creating the options
         menu = QMenu()
         self.update_menu = menu.addMenu("更新")
-        self.debug_menu = menu.addMenu("调试") if self.settings.dev_mode else ""
+        self.debug_menu = menu.addMenu("调试") if gui_manager.settings_manager.dev_mode else ""
         menus = {
             'update': self.update_menu,
             'debug': self.debug_menu
@@ -48,7 +44,7 @@ class SysTray():
         for index, action in enumerate(update_actions):
             option = QAction(action['title'], self.app)
             option.triggered.connect(lambda _, index=index: self.execute_action_by_index(index))
-            if self.settings.dev_mode:
+            if gui_manager.settings_manager.dev_mode:
                 menus[action['menu']].addAction(option)
             else:
                 if not action['menu']=='debug':
