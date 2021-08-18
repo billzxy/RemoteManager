@@ -23,11 +23,13 @@ class APIManager:
         yml_data = self.settings_manager.get_yaml_info(self.settings_manager.get_paths()[FilePath.APP_YML])
         self.local_java_srv_port = yml_data['server']['port']
 
-    def get_user_token(self, acc_id, acc_secret):
-        params = {"AccessKeyId":acc_id, "AccessKeySecret":acc_secret}
+    def get_user_token(self, signature, params):
+        params["Signature"] = signature
+        headers = {"AccessKeyId": params['AccessKeyId']}
         url = self.__assemble_url("/getUserToken", "/gateway/token")
         self.logger.debug("GET user token: %s", url)
-        data = self.__http_get(url, params)
+        self.logger.debug("params: %s", params)
+        data = self.__http_get(url, params, headers=headers)
         if not data['code'] == 1:
             raise ICBRequestError(data)
         content = data['content']
@@ -173,6 +175,7 @@ class APIManager:
     def __http_get(self, url, params, headers=""):
         self.logger.debug("GET请求url: %s, params: %s, headers: %s", url, params, headers)
         r = requests.get(url, params=params, headers=headers, timeout=60)
+        self.logger.debug("GET请求url: %s", r.url)
         self.logger.debug("GET请求结果 状态码: %s, 返回内容: %s", r.status_code, r.text)
         if not r.status_code == 200:
             if r.status_code == 404:
@@ -184,7 +187,12 @@ class APIManager:
         try:
             parsed_dict = json.loads(decrypted)
             if not parsed_dict['code'] == 1:
-                raise ICBRequestError(parsed_dict['msg'])
+                try:
+                    message = parsed_dict['msg']
+                except KeyError:
+                    message = parsed_dict['content']
+                finally:
+                    raise ICBRequestError(message)
             try:
                 content_raw = parsed_dict['content']
             except:
