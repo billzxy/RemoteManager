@@ -67,6 +67,7 @@ class HeartBeatManager():
         self.logger.debug("发送心跳")
         try:
             self.process_manager.keep_fs_alive()
+            self.process_manager.check_reg()
             self.process_manager.keep_java_alive()
             hb_info = self.fill_heartbeat_struct()
             self.request_manager.post_heartbeat_info(hb_info)

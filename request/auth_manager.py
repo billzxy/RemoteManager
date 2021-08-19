@@ -12,7 +12,7 @@ class AuthenticationManager:
         pass
 
     def post_init(self):
-        self.read_saved_timestamp()
+        self.acquire_new_token()
 
     def get_token(self):
         """
@@ -20,8 +20,9 @@ class AuthenticationManager:
         if expired, acquire new
         otherwise, use currently saved
         """
-        current_timestamp = int(datetime.datetime.now().timestamp() * 1000)        
+        current_timestamp = int(datetime.datetime.now().timestamp())        
         if int(self.__expiration_timestamp) <= current_timestamp:
+            self.logger.debug("口令已过期, 重新获取")
             self.acquire_new_token() 
 
         return self.__token
@@ -47,8 +48,17 @@ class AuthenticationManager:
         """
         try:
             with open("./settings/timestamp", "r") as timestamp_file:
-                self.__expiration_timestamp = timestamp_file.read()
-            
+                local_timestamp = timestamp_file.read()
+                if not len(local_timestamp) == 10:
+                    self.logger.debug("本地时间戳长度有误, 重新获取token")
+                    self.acquire_new_token()
+                else:
+                    self.__expiration_timestamp = local_timestamp
+
+        except FileNotFoundError:
+            self.logger.error("本地无token时间戳记录, 获取新token")
+            self.acquire_new_token()
+         
         except Exception as e:
             self.acquire_new_token()
             self.logger.error("本地获取时间戳失败, 已重新请求接口获取, 错误原因: %s",

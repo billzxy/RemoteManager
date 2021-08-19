@@ -25,7 +25,6 @@ def manager(cls):
             instances[cls] = new_obj 
             add_members(new_obj)
             try:
-                new_obj.logger.debug(f"Post init: {new_obj.module_name}")
                 new_obj.post_init()
             except:
                 new_obj.logger.debug(f"Post init: {new_obj.module_name}, error: %s", traceback.format_exc())
@@ -48,6 +47,7 @@ def with_lock(lock, blocking=False, then_execute_callback=None):
                     res = fn(self, *args, **kwargs)
                 except Exception:
                     self.logger.error(traceback.format_exc())
+                    res = None
                 finally:
                     thread_lock.release()
                     if then_execute_callback:
