@@ -82,6 +82,7 @@ class BoxRemoteManager:
         threads = threading.enumerate()
         for thread in threads:
             self.logger.debug("线程 %s 运行状态: %s", thread.name, thread.is_alive())
+        self.install_manager.pause_all_operations()
         toast_notification("证通智能精灵", "成功退出", "智能精灵助手已经停止")
         sys.exit(1)
 

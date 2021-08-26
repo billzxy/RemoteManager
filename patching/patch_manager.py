@@ -147,8 +147,8 @@ class PatchManager:
 
     def dump_meta(self):
         meta_data = {
-            'state': self.state,
-            'list': self.patch_objs,
+            'state': self.state.value,
+            'list': list(map(PatchObject.to_dict, self.patch_objs)),
             'retries': self.retry,
             'mark': self.upgrade_mark,
             'self_update_version': self.self_update_version
@@ -172,8 +172,8 @@ class PatchManager:
             self.reset_states()
             return 
         meta_data = jsonpickle.decode(json_str)
-        self.state = meta_data['state']
-        self.patch_objs = meta_data['list']
+        self.state = PatchCyclePhase(int(meta_data['state']))
+        self.patch_objs = list(map(PatchObject.from_dict, meta_data['list']))
         self.retry = meta_data['retries']
         self.upgrade_mark = meta_data['mark']
         self.self_update_version = meta_data['self_update_version']

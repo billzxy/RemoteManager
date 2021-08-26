@@ -17,7 +17,7 @@ TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 SETTINGS_PATH = "./settings/settings.ini"
 flogger = logging.getLogger("file_logger")
 flogger.setLevel(logging.DEBUG)
-fileHandler = logging.FileHandler('update.log', encoding='utf-8')
+fileHandler = logging.FileHandler('logs/update.log', encoding='utf-8')
 fileHandler.setLevel(logging.DEBUG)
 fileHandler.setFormatter(logging.Formatter(FORMAT_PATTERN, TIME_FORMAT))
 flogger.addHandler(fileHandler)

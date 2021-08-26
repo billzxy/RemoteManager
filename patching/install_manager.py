@@ -309,8 +309,8 @@ class InstallManager:
         # when all installation(including self-update) finished
         if(len(self.patch_manager.patch_objs)>0):
             patch_obj = self.patch_manager.patch_objs[-1]
-            remark = patch_obj['remark']
-            version = patch_obj['version_num']
+            remark = patch_obj.remark
+            version = patch_obj.version_num
             self.logger.info(f"{'当前最新版本: '+version if version else ''} {'更新内容: '+remark if remark else ''}")
             toast_notification("证通智能精灵", "更新成功", f"{'当前最新版本: '+version if version else ''} {'更新内容: '+remark if remark else ''}")
         self.config_manager.load_config()
