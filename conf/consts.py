@@ -45,7 +45,8 @@ REMOTE_CONF_MAPPING = {
     "callboxUsername": ('FreeSWITCH', 'callboxUsername'),
     "numconvertPassword": ('FreeSWITCH', 'numconvertPassword'),
     "hostAdr": ('host', 'adr'),
-    "dbfileName": ('dbfile', 'name')
+    "dbfileName": ('dbfile', 'name'),
+    "phoneEncryption": ('QTHZ', 'phoneEncryption')
 }
 
 XMLS = [

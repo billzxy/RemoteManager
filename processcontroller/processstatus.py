@@ -1,3 +1,4 @@
+from conf.consts import REMOTE_CONF_MAPPING
 from utils.my_logger import logger
 from misc.decorators import manager, with_retry
 from misc.exceptions import UpdateIsNoGo
@@ -342,6 +343,7 @@ class ProcessManager:
         yml_data['city-code'] = "${CITY_CODE:" + config["city"]["num"] + "}"
         yml_data['url-port'] = "${ICB-PORT:" + config["host"]["adr"] + "}"
         yml_data['spring']['datasource']['druid']['url'] = f'jdbc:sqlite:{self.qthz_path}\\data\\{config["dbfile"]["name"]}'
+        yml_data['phone-num-encryption'] = config['QTHZ']['phoneEncryption']
         self.settings_manager.write_yaml_info(self.paths[FilePath.APP_YML], yml_data)
         self.logger.debug("修改JAR包Spring参数")
     

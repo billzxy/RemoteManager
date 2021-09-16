@@ -17,11 +17,25 @@ TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 SETTINGS_PATH = "./settings/settings.ini"
 flogger = logging.getLogger("file_logger")
 flogger.setLevel(logging.DEBUG)
-fileHandler = logging.FileHandler('logs/update.log', encoding='utf-8')
+fileHandler = logging.FileHandler('./logs/update.log', encoding='utf-8')
 fileHandler.setLevel(logging.DEBUG)
 fileHandler.setFormatter(logging.Formatter(FORMAT_PATTERN, TIME_FORMAT))
 flogger.addHandler(fileHandler)
 
+class PatchObject(object):
+    def __init__(self, version_data):
+        self.version_code = version_data['versionCode']
+        self.version_num = version_data['versionNum']
+        self.file_MD5 = version_data['fileMd5']
+        self.remark = version_data['remark']
+        try:
+            self.argument_config_map = version_data['argumentConfigMap']
+        except:
+            self.argument_config_map = {}
+        self.status = PatchStatus.PENDING
+
+    def set_status(self, new_status):
+        self.status = new_status
 class Updater:
     def __init__(self):
         self.patch_meta = None
@@ -40,12 +54,12 @@ class Updater:
         with open(self.meta_file_path, 'r') as meta_file:
             json_str = meta_file.read()
         self.patch_meta = jsonpickle.decode(json_str)
-        self.state = self.patch_meta['state']
+        self.state = PatchCyclePhase(int(self.patch_meta['state']))
         self.self_update_version = self.patch_meta['self_update_version']
 
     def save_patch_meta(self):
         flogger.info("修改元文件状态")
-        self.patch_meta['state'] = PatchCyclePhase.SELF_UPDATE_COMPLETE
+        self.patch_meta['state'] = PatchCyclePhase.SELF_UPDATE_COMPLETE.value
         data_json_str = jsonpickle.encode(self.patch_meta)
         
         with open(self.meta_file_path, 'w') as meta_file:

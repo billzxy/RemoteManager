@@ -211,7 +211,7 @@ class InstallManager:
             self.logger.debug("更替自更新程序完成")
 
         #settings.ini
-        settings_file_path = patch_dir_path+"settings.ini"
+        settings_file_path = patch_dir_path+"\\settings.ini"
         if exists(settings_file_path):
             try:
                 new_configs = self.settings_manager.read_ini_into_config(settings_file_path)
