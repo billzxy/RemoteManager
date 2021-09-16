@@ -1,8 +1,8 @@
 import logging, sys, logging.handlers
+from settings.settings_manager import SettingsManager
 from conf.consts import CONFIG
 from misc.enumerators import Envs
-from misc.decorators import singleton
-from settings.settings_manager import SettingsManager, SettingsCategories, SettingsItems
+from misc.decorators import manager, singleton
 
 LEVELS = { # all native logging lib levels in ascending order, higher = severer
     'debug': logging.DEBUG,
@@ -29,11 +29,8 @@ class LoggerManager():
         self.get_env = self.settings_manager.get_env
         logging_level = self.settings_manager.get_logging_level().lower()
         self.log_expiration_days = int(self.settings_manager.get_log_expiration())
-        
-        
         self.init_logger(self.switch_logging_level(logging_level), self.ignore_file_output(self.get_env()))
-        
-        self.logger.debug("Logging manager successfully instantiated")
+        self.logger.info("Logger is initialized")
 
     # config logger properties to log for both file and console
     def init_logger(self, level=logging.INFO, to_file=True):

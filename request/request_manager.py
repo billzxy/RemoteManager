@@ -1,27 +1,23 @@
 import traceback
-from utils.db_operator import DBOperator
-from misc.decorators import singleton
+import requests
+from misc.decorators import manager
+from utils.my_logger import logger
 from misc.exceptions import FileDownloadError, HttpRequestError, ICBRequestError, NotFoundError, UpdateIsNoGo
 from misc.enumerators import GetTasksAPIType, TaskStatusRequestSignal
-from request.auth_manager import AuthenticationManager
-from request.api import APIManager
-from conf.config import ConfigManager
-from utils.my_logger import logger
 from requests_toolbelt import MultipartEncoder
-import requests
 
 
-@singleton
+
+@manager
 @logger
 class RequestManager():
     def __init__(self):
-        self.config_manager = ConfigManager()
+        pass
+
+    def post_init(self):
         self.host_addr = self.config_manager.get_host_address()
         self.api_prefix = self.config_manager.get_api_prefix()
-        self.api_manager = APIManager()
-        self.db_operator = DBOperator()
-        self.logger.debug(f"{self.module_name} successfully initialized...")
-
+       
 
     def get_version_check(self):
         version_info = self.config_manager.get_version_info()

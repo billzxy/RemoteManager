@@ -18,6 +18,9 @@ class FilePath(Enum):
     JAVA_PID = 'java_pid'
     PATH_BAT = 'path_bat'
     APP_YML = "app_yml"
+    MANAGER = "manager"
+    UPDATER = "updater"
+    STARTER = "starter"
 
 class SettingsCategories(Enum):
     GENERAL = 'general'
@@ -35,13 +38,18 @@ class SettingsItems(Enum):
     CONFIG = 'config'
     PATCH = 'patch'
     PATCHMETA = 'patchmeta'
+    MANAGER_DIR = "manager_dir"
     FS = 'fs'
     FS_CONF = 'fs_conf'
+
     JAVA = 'java'
     JAVA_PID = 'java_pid'
     JAR = 'jar'
     PATH_BAT = 'path_bat'
     APP_YML = 'app_yml'
+    MANAGER = "manager"
+    UPDATER = "updater"
+    STARTER = "starter"
 
     # timer
     HB = 'heartbeat'
@@ -73,9 +81,12 @@ class PatchCyclePhase(Enum):
     INCEPTION = 1
     DOWNLOAD = 2
     PENDING = 3
-    PREPPED = 4
-    COMPLETE = 5
-    ROLLEDBACK = 6
+    BACKUP_CREATED = 4
+    FILES_UPDATED = 5
+    SELF_UPDATE_PENDING = 6
+    SELF_UPDATE_COMPLETE = 7
+    COMPLETE = 8
+    ROLLEDBACK = 9
     def __lt__(self, other):
         if self.__class__ is other.__class__:
             return self.value < other.value

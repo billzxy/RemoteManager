@@ -1,7 +1,5 @@
 from functools import wraps
-from conf.config import ConfigManager
-from settings.settings_manager import SettingsManager
-from misc.decorators import singleton
+from misc.decorators import manager
 from utils.my_logger import logger
 
 import sqlite3, traceback, uuid, logging
@@ -43,14 +41,15 @@ def with_connection_and_transaction(transaction=False):
         return execution
     return wrapper
 
-@singleton
+
+@manager
 @logger
 class DBOperator():
     def __init__(self):
-        self.settings_manager = SettingsManager()
-        self.config_manager = ConfigManager()
-        self.sqlite_path = "%s\\%s" %(self.settings_manager.get_sqlite_db_path(), self.config_manager.get_config_item_by_mapping("dbfileName"))
         self.conn_pool = {}
+       
+    def post_init(self):
+        self.sqlite_path = "%s\\%s" %(self.settings_manager.get_sqlite_db_path(), self.config_manager.get_config_item_by_mapping("dbfileName"))
 
     @with_connection_and_transaction()    
     def get_all_ongoing_task_ids(self, cursor, *_, **__):

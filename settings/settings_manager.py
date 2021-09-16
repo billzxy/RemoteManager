@@ -17,16 +17,20 @@ class SettingsManager():
         self.logger.info("Settings finished loading...")
 
     def get_paths(self):
+        fnames = self.get_filenames()
         return {
             FilePath.CONFIG: self.qthz_inst_path+self.__settings[SettingsCategories.PATHS.value][SettingsItems.CONFIG.value],
             FilePath.FS: self.__settings[SettingsCategories.PATHS.value][SettingsItems.FS.value],
             FilePath.FS_CONF: self.__settings[SettingsCategories.PATHS.value][SettingsItems.FS.value]
                 +self.__settings[SettingsCategories.PATHS.value][SettingsItems.FS_CONF.value],
             FilePath.JAVA: self.__settings[SettingsCategories.PATHS.value][SettingsItems.JAVA.value],
-            FilePath.JAR: self.qthz_inst_path+self.__settings[SettingsCategories.PATHS.value][SettingsItems.JAR.value],
-            FilePath.JAVA_PID: self.qthz_inst_path+self.__settings[SettingsCategories.PATHS.value][SettingsItems.JAVA_PID.value],
-            FilePath.APP_YML: self.qthz_inst_path+self.__settings[SettingsCategories.PATHS.value][SettingsItems.APP_YML.value],
-            FilePath.PATH_BAT: self.qthz_inst_path+self.__settings[SettingsCategories.PATHS.value][SettingsItems.PATH_BAT.value]
+            FilePath.JAR: self.qthz_inst_path+fnames[FilePath.JAR],
+            FilePath.JAVA_PID: self.qthz_inst_path+fnames[FilePath.JAVA_PID],
+            FilePath.APP_YML: self.qthz_inst_path+fnames[FilePath.APP_YML],
+            FilePath.PATH_BAT: self.qthz_inst_path+fnames[FilePath.PATH_BAT],
+            FilePath.MANAGER: self.get_remote_manager_path() + fnames[FilePath.MANAGER],
+            FilePath.UPDATER: self.get_remote_manager_path() + fnames[FilePath.UPDATER],
+            FilePath.STARTER: self.get_remote_manager_path() + fnames[FilePath.STARTER]
         }
 
     def get_filenames(self):
@@ -34,6 +38,10 @@ class SettingsManager():
             FilePath.JAR: self.__settings[SettingsCategories.PATHS.value][SettingsItems.JAR.value],
             FilePath.JAVA_PID: self.__settings[SettingsCategories.PATHS.value][SettingsItems.JAVA_PID.value],
             FilePath.APP_YML: self.__settings[SettingsCategories.PATHS.value][SettingsItems.APP_YML.value],
+            FilePath.PATH_BAT: self.__settings[SettingsCategories.PATHS.value][SettingsItems.PATH_BAT.value],
+            FilePath.MANAGER: self.__settings[SettingsCategories.PATHS.value][SettingsItems.MANAGER.value],
+            FilePath.UPDATER: self.__settings[SettingsCategories.PATHS.value][SettingsItems.UPDATER.value],
+            FilePath.STARTER: self.__settings[SettingsCategories.PATHS.value][SettingsItems.STARTER.value]
         }
     
     def get_host_addr(self):
@@ -56,6 +64,9 @@ class SettingsManager():
 
     def get_QTHZ_inst_path(self):
         return self.qthz_inst_path
+
+    def get_remote_manager_path(self):
+        return self.qthz_inst_path + self.__settings[SettingsCategories.PATHS.value][SettingsItems.MANAGER_DIR.value]
 
     def get_sqlite_db_path(self):
         return self.qthz_inst_path+self.__settings[SettingsCategories.PATHS.value]['data']

@@ -1,20 +1,17 @@
-from settings.settings_manager import SettingsManager
-from misc.decorators import singleton, with_retry
-from misc.enumerators import FilePath, GetTasksAPIType
-from conf.config import ConfigManager
-from request.encryption import EncryptionManager
-from misc.exceptions import HttpRequestError, ICBRequestError, FileDownloadError, NoFileError, NotFoundError
+from misc.decorators import manager, with_retry
 from utils.my_logger import logger
+from misc.enumerators import FilePath, GetTasksAPIType
+from misc.exceptions import HttpRequestError, ICBRequestError, FileDownloadError, NoFileError, NotFoundError
 
 import requests, json, shutil, traceback, datetime
 
-@singleton
+@manager
 @logger
-class APIManager():
+class APIManager:
     def __init__(self):
-        self.enc_manager = EncryptionManager()
-        self.settings_manager = SettingsManager()
-        self.config_manager = ConfigManager()
+        pass
+
+    def post_init(self):
         self.init_addresses()
     
     def init_addresses(self):
@@ -26,11 +23,13 @@ class APIManager():
         yml_data = self.settings_manager.get_yaml_info(self.settings_manager.get_paths()[FilePath.APP_YML])
         self.local_java_srv_port = yml_data['server']['port']
 
-    def get_user_token(self, acc_id, acc_secret):
-        params = {"accesskeyId":acc_id, "accesskeySecret":acc_secret}
+    def get_user_token(self, signature, params):
+        params["Signature"] = signature
+        headers = {"AccessKeyId": params['AccessKeyId']}
         url = self.__assemble_url("/getUserToken", "/gateway/token")
         self.logger.debug("GET user token: %s", url)
-        data = self.__http_get(url, params)
+        self.logger.debug("params: %s", params)
+        data = self.__http_get(url, params, headers=headers)
         if not data['code'] == 1:
             raise ICBRequestError(data)
         content = data['content']
@@ -38,10 +37,13 @@ class APIManager():
 
     def get_version_check(self, version_num):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
-        params = {'appkey':headers['appkey'], 'versionNum':version_num}
+        params = {
+            'appkey':headers['appkey'], 
+            'versionNum':version_num
+        }
         url = self.__assemble_url("/version/check")
         self.logger.debug("GET version check: %s", url)
         data = self.__http_get(url, params, headers)
@@ -51,10 +53,13 @@ class APIManager():
 
     def get_file_download(self, version_code, local_filename, fn_set_progress):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
-        params = {'appkey':headers['appkey'], 'versionCode':version_code}
+        params = {
+            'appkey':headers['appkey'],
+            'versionCode':version_code
+        }
         url = self.__assemble_url("/version/file")
         self.logger.debug("GET version file: %s", url)
         try:
@@ -69,7 +74,7 @@ class APIManager():
         
         except Exception as e:
             self.error("File download failed...")
-            raise FileDownloadError(traceback.print_exc()) 
+            raise FileDownloadError(traceback.format_exc()) 
         
         return fname  
 
@@ -89,7 +94,7 @@ class APIManager():
     @with_retry(retries=3, interval=5)
     def post_up_task_status(self, task_id_list, task_op_flag):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
         data = {
@@ -105,7 +110,7 @@ class APIManager():
 
     def post_heartbeat_info(self, heartbeat_info):
         headers = {
-            # 'token': self.auth_manager.get_token(),
+            'token': self.auth_manager.get_token(),
             'appkey': self.config_manager.get_keys()['appkey']
         }
         heartbeat_key_val_list = list(map(lambda tup: {'key': tup[0], 'value': tup[1]}, heartbeat_info.items()))
@@ -143,7 +148,7 @@ class APIManager():
         if not r.status_code == 200:
             raise HttpRequestError(r, r.text)
         raw = r.text
-        # decrypted = self.enc_manager.decrypt(raw)
+        # decrypted = self.encryption_manager.decrypt(raw)
         decrypted = raw
         try:
             parsed_dict = json.loads(decrypted)
@@ -158,7 +163,7 @@ class APIManager():
         if not r.status_code == 200:
             raise HttpRequestError(r, r.text)
         raw = r.text
-        decrypted = self.enc_manager.decrypt(raw)
+        decrypted = self.encryption_manager.decrypt(raw)
         try:
             parsed_dict = json.loads(decrypted)
         except json.decoder.JSONDecodeError:
@@ -170,18 +175,24 @@ class APIManager():
     def __http_get(self, url, params, headers=""):
         self.logger.debug("GET请求url: %s, params: %s, headers: %s", url, params, headers)
         r = requests.get(url, params=params, headers=headers, timeout=60)
+        self.logger.debug("GET请求url: %s", r.url)
         self.logger.debug("GET请求结果 状态码: %s, 返回内容: %s", r.status_code, r.text)
         if not r.status_code == 200:
             if r.status_code == 404:
                 raise NotFoundError
             raise HttpRequestError(r, r.text)
         raw = r.text
-        # decrypted = self.enc_manager.decrypt(raw)
+        # decrypted = self.encryption_manager.decrypt(raw)
         decrypted = raw
         try:
             parsed_dict = json.loads(decrypted)
             if not parsed_dict['code'] == 1:
-                raise ICBRequestError(parsed_dict['msg'])
+                try:
+                    message = parsed_dict['msg']
+                except KeyError:
+                    message = parsed_dict['content']
+                finally:
+                    raise ICBRequestError(message)
             try:
                 content_raw = parsed_dict['content']
             except:

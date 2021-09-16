@@ -1,9 +1,9 @@
+from conf.consts import REMOTE_CONF_MAPPING
+from utils.my_logger import logger
+from misc.decorators import manager, with_retry
 from misc.exceptions import UpdateIsNoGo
 from gui.winrt_toaster import toast_notification
 from misc.enumerators import FilePath
-from settings.settings_manager import SettingsManager
-from utils.my_logger import logger
-from misc.decorators import singleton, with_retry
 import os
 import subprocess
 import traceback
@@ -16,12 +16,14 @@ FREESWITCH_PROCESS_NAME = 'FreeSwitch'
 JAVA_PROCESS_PORT = '18080'
 ICB_BOX_JAVA__PROC_NAME = 'java'
 
-@singleton
+
+@manager
 @logger
 class ProcessManager:
     def __init__(self):
         start = 'start'
-        self.settings_manager = SettingsManager()
+
+    def post_init(self):
         self.paths = self.settings_manager.get_paths()
         # self.fs_path = self.paths[FilePath.FS]
         self.qthz_path = self.settings_manager.get_QTHZ_inst_path()
@@ -194,8 +196,58 @@ class ProcessManager:
                 self.start_freeswitch()
                 self.logger.info("FS守护检测到FS进程已停止, 正在重启")
             except Exception:
-                print(traceback.format_exc())
+                self.logger.error(traceback.format_exc())
                 return 0
+
+    def check_reg(self):
+        try:
+            proc = subprocess.check_output(['C:\\Program Files\\FreeSWITCH\\fs_cli.exe', '-x', 'sofia status'],
+                                        shell=True,
+                                        stdin=subprocess.DEVNULL,
+                                        stderr=subprocess.STDOUT
+                                        )
+        except subprocess.CalledProcessError:
+            self.logger.error({'reg_numconvert': 'unknown', 'reg_callbox': 'unknown'})
+            return 
+
+        remote_fs_conn_status = ''
+        callbox_conn_status = ''
+        if proc != 0:
+            result = proc.decode('utf-8')
+            result_list = result.split(' ')
+            result_list_final = []
+            for i in result_list:
+                if i == '':
+                    pass
+                else:
+                    result_list_final.append(i)
+            for i in result_list_final:
+                if i == 'external::numconvert\tgateway\t':
+                    remote_fs_conn_status = result_list_final[result_list_final.index(
+                        i) + 1]
+                elif i == 'external::callbox\tgateway\t':
+                    callbox_conn_status = result_list_final[result_list_final.index(
+                        i) + 1]
+        remote_fs_conn_status_list = remote_fs_conn_status.split('\t')
+        callbox_conn_status_list = callbox_conn_status.split('\t')
+        if callbox_conn_status_list[-1][:-2] == "REGED":
+            try:
+                proc = subprocess.check_output(['C:\\Program Files\\FreeSWITCH\\fs_cli.exe', '-x', 'sofia profile external register numconvert'],
+                                            shell=True,
+                                            stdin=subprocess.DEVNULL,
+                                            stderr=subprocess.STDOUT
+                                            )
+            except subprocess.CalledProcessError:
+                self.logger.error("Error executing 'sofia profile external register numconvert'")
+        else:
+            try:
+                proc = subprocess.check_output(['C:\\Program Files\\FreeSWITCH\\fs_cli.exe', '-x', 'sofia profile external unregister numconvert'],
+                                            shell=True,
+                                            stdin=subprocess.DEVNULL,
+                                            stderr=subprocess.STDOUT
+                                            )
+            except subprocess.CalledProcessError:
+                self.logger.error("Error executing 'sofia profile external register numconvert'")
 
 # -------------------- JAVA management ----------------------
     def is_java_running(self):
@@ -291,6 +343,7 @@ class ProcessManager:
         yml_data['city-code'] = "${CITY_CODE:" + config["city"]["num"] + "}"
         yml_data['url-port'] = "${ICB-PORT:" + config["host"]["adr"] + "}"
         yml_data['spring']['datasource']['druid']['url'] = f'jdbc:sqlite:{self.qthz_path}\\data\\{config["dbfile"]["name"]}'
+        yml_data['phone-num-encryption'] = config['QTHZ']['phoneEncryption']
         self.settings_manager.write_yaml_info(self.paths[FilePath.APP_YML], yml_data)
         self.logger.debug("修改JAR包Spring参数")
     

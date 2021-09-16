@@ -1,49 +1,35 @@
-from processcontroller.processstatus import ProcessManager
-from patching.install_manager import InstallManager
-from patching.patch_manager import PatchManager
-from utils.log_manager import LoggerManager
 from settings.settings_manager import SettingsManager
-from conf.config import ConfigManager
-from request.request_manager import RequestManager
-from request.api import APIManager
-from request.auth_manager import AuthenticationManager
-from gui.gui_manager import GUIManager
+from utils.log_manager import LoggerManager
+from misc.decorators import manager
+# from processcontroller.processstatus import ProcessManager
+# from patching.install_manager import InstallManager
+# from patching.patch_manager import PatchManager
+# from utils.log_manager import LoggerManager
+# from settings.settings_manager import SettingsManager
+# from conf.config import ConfigManager
+# from request.request_manager import RequestManager
+# from request.api import APIManager
+# from request.auth_manager import AuthenticationManager
 from gui.winrt_toaster import toast_notification
-from heartbeat.heartbeatdata import HeartBeatManager
+# from heartbeat.heartbeatdata import HeartBeatManager
+from gui.gui_manager import GUIManager
 from scheduler.repeating_timer import RepeatingTimer
 from utils.my_logger import logger
 import threading, sys
 
 
+@manager
 @logger
 class BoxRemoteManager:
     def __init__(self):
-        self.init_config()
         self.logger.info('BoxHelper Update Module is initializing...')
-        self.init_managers()
         self.timers = []
+        self.settings_manager = SettingsManager()
+        self.log_manager = LoggerManager()
+
+    def post_init(self):
         if not self.settings_manager.dev_mode:
             self.init_timers()
-
-
-    def init_config(self):
-        self.settings_manager = SettingsManager()
-        try:
-            self.config_manager = ConfigManager()
-        except KeyError:
-            raise
-        
-    def init_managers(self):
-        """
-        initializing managers that handle API comm, authentication token, and abstracted HTTP requests
-        """
-        self.api_manager = APIManager()
-        self.auth_manager = AuthenticationManager()
-        self.request_manager = RequestManager()
-        self.patch_manager = PatchManager()
-        self.install_manager = InstallManager()
-        self.heartbeat_manager = HeartBeatManager() 
-        self.process_manager = ProcessManager()
 
     def init_timers(self):
         heartbeat_interval = float(self.settings_manager.get_heartbeat_timer())
@@ -60,8 +46,8 @@ class BoxRemoteManager:
         self.logger.debug("已启动自动版本检查, timer interval: %.1f secs", version_check_interval)
         self.timers.append(self.version_check_timer)
         
-        self.heartbeat_timer.start()
         self.version_check_timer.start()
+        self.heartbeat_timer.start()
         
     def exit_gracefully(self, fn_child_exit):
         for timer in self.timers:
@@ -96,11 +82,11 @@ class BoxRemoteManager:
         threads = threading.enumerate()
         for thread in threads:
             self.logger.debug("线程 %s 运行状态: %s", thread.name, thread.is_alive())
+        self.install_manager.pause_all_operations()
         toast_notification("证通智能精灵", "成功退出", "智能精灵助手已经停止")
         sys.exit(1)
 
 def entrypoint():
-    LoggerManager()
     module_manager = BoxRemoteManager()
     module_manager.start_gui()
     module_manager.destroy()

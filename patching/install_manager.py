@@ -1,30 +1,25 @@
-from request.request_manager import RequestManager
-from misc.exceptions import UpdateIsNoGo
-from utils.db_operator import DBOperator
-from processcontroller.processstatus import ProcessManager
-from conf.config import ConfigManager
-from misc.enumerators import FilePath, PatchCyclePhase, PatchStatus, ThreadLock
-from settings.settings_manager import SettingsManager
-from misc.decorators import singleton, with_lock
+from misc.decorators import manager, with_lock
 from utils.my_logger import logger
+from misc.exceptions import UpdateIsNoGo
+from misc.enumerators import FilePath, PatchCyclePhase, PatchStatus, ThreadLock
 from pathlib import Path
 from os import listdir
 from os.path import isfile, join, exists, splitext
 from gui.winrt_toaster import toast_notification
-import shutil, traceback, time, sqlite3, threading
+import shutil, traceback, time, sqlite3, threading, subprocess
 
-@singleton
+
+@manager
 @logger
 class InstallManager:
-    def __init__(self, patch_manager):
-        self.settings_manager = SettingsManager()
-        self.patch_manager = patch_manager
-        self.config_manager = ConfigManager()
-        self.process_manager = ProcessManager()
-        self.request_manager = RequestManager()
-        self.db_operator = DBOperator()
+    def __init__(self):
+        pass
+
+    def post_init(self):
         self.paths = self.settings_manager.get_paths()
         self.fnames = self.settings_manager.get_filenames()
+        self.patch_manager.load_meta()
+        self.__check_self_update_follow_up()
     
     def clear_download_cache(self):
         self.logger.info("清除下载缓存")
@@ -53,8 +48,8 @@ class InstallManager:
         self.patch_manager.load_meta()
         # extra try-catch block to ensure a lock-release when @with_lock decorator finishes execution
         try: 
-            if(self.patch_manager.state < PatchCyclePhase.PENDING 
-                or self.patch_manager.state > PatchCyclePhase.PREPPED):
+            if(self.patch_manager.state <= PatchCyclePhase.DOWNLOAD 
+                or self.patch_manager.state >= PatchCyclePhase.COMPLETE):
                 toast_notification("证通智能精灵", "软件更新", "暂时没有需要安装的更新噢!")
                 self.logger.info("暂无需要安装的更新")
                 return 1
@@ -77,19 +72,23 @@ class InstallManager:
     def installation(self):
         if self.patch_manager.state == PatchCyclePhase.PENDING:
             result = self.create_backup()
-        if self.patch_manager.state == PatchCyclePhase.PREPPED:
+        if self.patch_manager.state == PatchCyclePhase.BACKUP_CREATED:
             result = self.replace_files()
-        if self.patch_manager.state == PatchCyclePhase.COMPLETE:
-            result = self.post_installation_cleanup()
+        if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_PENDING:
+            result = self.commence_self_update()
         if self.patch_manager.state == PatchCyclePhase.ROLLEDBACK:
             # TODO: do something to mitigate the aftermath
-            self.patch_manager.state = PatchCyclePhase.PENDING
             for index, _ in enumerate(self.patch_manager.patch_objs):
                 patch_obj = self.patch_manager.patch_objs[index]
                 patch_obj.status = PatchStatus.DOWNLOADED
-            self.patch_manager.dump_meta()
+            self.patch_manager.preserve_installation_state(PatchCyclePhase.PENDING)
             self.logger.info("可尝试再次安装")
-        self.resume_all_operations()
+            self.resume_all_operations()
+        if self.patch_manager.state == PatchCyclePhase.FILES_UPDATED:
+            result = self.post_installation_cleanup()
+        if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_COMPLETE:
+            result = self.__check_self_update_follow_up()
+        
         return result
 
     def create_backup(self):
@@ -110,18 +109,16 @@ class InstallManager:
             self.logger.error(traceback.format_exc())
             raise
         else:
-            self.patch_manager.state = PatchCyclePhase.PREPPED
-            self.patch_manager.dump_meta()
+            self.patch_manager.preserve_installation_state(PatchCyclePhase.BACKUP_CREATED)
             return 1
 
     def revert_backup(self, patch_objs):
-        self.patch_manager.state = PatchCyclePhase.ROLLEDBACK
         for index, _ in enumerate(patch_objs):
             patch_obj = patch_objs[index]
             patch_obj.status = PatchStatus.REVERTED
             self.logger.debug("记录回滚版本: %s", patch_obj.version_num)
         self.revert_to_last()
-        self.patch_manager.dump_meta()
+        self.patch_manager.preserve_installation_state(PatchCyclePhase.ROLLEDBACK)
         toast_notification("证通智能精灵", "更新失败", "非常抱歉, 更新过程中遇到问题, 已经为您退回到之前的版本, 请您联系证通的技术人员")
         self.logger.info("回滚完成")
 
@@ -160,15 +157,13 @@ class InstallManager:
                 # change patch_obj PatchStatus
                 patch_objs[index].status = PatchStatus.INSTALLED
                 self.logger.debug("完成一个版本的安装: %s", patch_obj.version_num)
-        self.patch_manager.state = PatchCyclePhase.COMPLETE
-        self.patch_manager.dump_meta()
-        self.logger.info("遍历安装完成")
-        if(len(self.patch_manager.patch_objs)>0):
-            patch_obj = self.patch_manager.patch_objs[-1]
-            remark = patch_obj.remark
-            version = patch_obj.version_num
-            self.logger.info(f"{'当前最新版本: '+version if version else ''} {'更新内容: '+remark if remark else ''}")
-            toast_notification("证通智能精灵", "更新成功", f"{'当前最新版本: '+version if version else ''} {'更新内容: '+remark if remark else ''}")
+
+        self.patch_manager.preserve_installation_state(PatchCyclePhase.FILES_UPDATED)
+        
+        if(self.patch_manager.self_update_version or not self.patch_manager.self_update_version==None):
+            self.patch_manager.preserve_installation_state(PatchCyclePhase.SELF_UPDATE_PENDING)    
+        
+        self.logger.info("各个版本遍历安装完成")
         return 1
 
     def replace_one_version(self, patch_obj):
@@ -179,7 +174,7 @@ class InstallManager:
         qthz_path = self.settings_manager.get_QTHZ_inst_path()
         
         self.logger.info("开始安装版本: %s", version_num)
-        # TODO: update RemoteManager
+
         # TODO: execute sh commands 
         
         # exec sql script; or replace sqlite source file 
@@ -196,10 +191,54 @@ class InstallManager:
             shutil.copy2(yml_path, qthz_path)
             self.logger.debug("更替YAML配置文件完成")
 
+        #self-update
+        #start.exe
+        start_exe_path = patch_dir_path+self.fnames[FilePath.STARTER]
+        if exists(start_exe_path):
+            try:
+                shutil.copy2(start_exe_path, self.settings_manager.get_remote_manager_path())
+            except:
+                self.logger.error("失败: 更替主启动程序, 原因 %s", traceback.format_exc())
+            self.logger.debug("更替主启动程序完成")
+
+        #updater.exe
+        updater_path = patch_dir_path+self.fnames[FilePath.UPDATER]
+        if exists(updater_path):
+            try:
+                shutil.copy2(updater_path, self.settings_manager.get_remote_manager_path())
+            except:
+                self.logger.error("失败: 更替自更新程序, 原因 %s", traceback.format_exc())
+            self.logger.debug("更替自更新程序完成")
+
+        #settings.ini
+        settings_file_path = patch_dir_path+"\\settings.ini"
+        if exists(settings_file_path):
+            try:
+                new_configs = self.settings_manager.read_ini_into_config(settings_file_path)
+                original_configs = self.settings_manager.read_ini_into_config("./settings/settings.ini")
+                for section in new_configs:
+                    for config in new_configs[section]:
+                        try:
+                            original_configs[section][config] = new_configs[section][config]
+                        except KeyError:
+                            original_configs.add_section(section)
+                            original_configs[section][config] = new_configs[section][config]
+
+                self.settings_manager.write_config_to_ini_file(original_configs, "./settings/settings.ini")
+            except:
+                self.logger.error("失败: 更替自更新程序, 原因 %s", traceback.format_exc())
+            self.logger.debug("更替自更新程序完成")
+
+        #entrypoint.exe
+        entrypoint_path = patch_dir_path+self.fnames[FilePath.MANAGER]
+        if exists(entrypoint_path):
+            self.patch_manager.self_update_version = version_num
+            self.patch_manager.dump_meta()
+
         # TODO: replace lua scripts
         
         # overwrite configuration.ini
-        self.config_manager.update_remote_config(arg_conf_map, patch_obj.version_num, patch_obj.version_code)
+        self.config_manager.update_remote_config(arg_conf_map, version_num, version_code)
     
     def update_sqlite_db(self, patch_dir_path, qthz_path, arg_conf_map):
         db_patch_dir = patch_dir_path+"\\data"
@@ -249,12 +288,37 @@ class InstallManager:
 
         self.logger.debug("数据更新完成")
 
+    def commence_self_update(self):
+        self.logger.info("开始自更替")
+        updater_path = self.settings_manager.get_paths()[FilePath.UPDATER]
+        try:
+            proc = subprocess.Popen([updater_path], creationflags=subprocess.DETACHED_PROCESS)
+        except Exception:
+            self.logger.error(traceback.format_exc())
+            return 0
+        else:
+            self.logger.info("自更替脚本程序启动成功, pid: %s", proc.pid)
+            return 1
+
+    def __check_self_update_follow_up(self):
+        if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_COMPLETE:
+            return self.post_installation_cleanup()
+        
+
     def post_installation_cleanup(self):
-        self.patch_manager.state = PatchCyclePhase.READY
-        self.patch_manager.dump_meta()
+        # when all installation(including self-update) finished
+        if(len(self.patch_manager.patch_objs)>0):
+            patch_obj = self.patch_manager.patch_objs[-1]
+            remark = patch_obj.remark
+            version = patch_obj.version_num
+            self.logger.info(f"{'当前最新版本: '+version if version else ''} {'更新内容: '+remark if remark else ''}")
+            toast_notification("证通智能精灵", "更新成功", f"{'当前最新版本: '+version if version else ''} {'更新内容: '+remark if remark else ''}")
         self.config_manager.load_config()
         self.config_manager.save_fs_conf()
+        self.patch_manager.preserve_installation_state(PatchCyclePhase.COMPLETE)
         self.logger.info("安装更新完成!")
+        self.resume_all_operations()
+        self.patch_manager.preserve_installation_state(PatchCyclePhase.READY)
         return 1
 
     def pause_all_operations(self):

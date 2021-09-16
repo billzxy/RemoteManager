@@ -1,35 +1,25 @@
 import logging
-from patching.install_manager import InstallManager
-from settings.settings_manager import SettingsManager
-from misc.decorators import singleton, with_countdown, with_lock
-from conf.config import ConfigManager
-from request.request_manager import RequestManager
-from patching.patch_obj import PatchObject
+from misc.decorators import manager, with_countdown, with_lock
 from utils.my_logger import logger
+from patching.patch_obj import PatchObject
 from misc.enumerators import PatchStatus, ThreadLock, UpgradeMark, PatchCyclePhase
 from misc.exceptions import FileDownloadError, ICBRequestError, NoFileError
 from pathlib import Path
 from gui.winrt_toaster import toast_notification
 import os, jsonpickle, shutil, hashlib, traceback, zipfile, threading, time
-import patching.install_manager
 
 
-def please_wait():
-    toast_notification("")
-
-
-@singleton
+@manager
 @logger
 class PatchManager:
     def __init__(self):
-        self.reset_states()
         jsonpickle.set_decoder_options('json', encoding='utf8')
-        self.settings_manager = SettingsManager()
-        self.request_manager = RequestManager()
-        self.install_manager = InstallManager(self)
+        
+    def post_init(self):
+        self.reset_states()
         self.meta_file_path = self.settings_manager.get_patch_meta_path()
         self.patch_dir_path = self.settings_manager.get_patch_dir_path()
-
+        
     @with_lock(ThreadLock.INSTALL_UPDATE)
     @with_lock(ThreadLock.HEARTBEAT, blocking=True)
     def check_update(self):
@@ -93,8 +83,7 @@ class PatchManager:
             self.state = PatchCyclePhase.INCEPTION
             return 0
         self.debug("Download finished.")
-        self.state = PatchCyclePhase.PENDING
-        self.dump_meta() 
+        self.preserve_installation_state(PatchCyclePhase.PENDING)
         if(UpgradeMark(self.upgrade_mark)==UpgradeMark.MANDATORY):
             self.debug("Mandatory update")
             toast_notification("证通智能精灵", "重要更新", "需要立即应用重要的更新, 您的外呼任务将会被自动暂停")
@@ -147,16 +136,22 @@ class PatchManager:
         self.progress = 0
         self.patch_objs = []
         self.upgrade_mark = -1
+        self.self_update_version = None
 
     def check_exists(self, dir_or_file):
         return os.path.exists(dir_or_file)
 
+    def preserve_installation_state(self, new_state):
+        self.state = new_state
+        self.dump_meta()
+
     def dump_meta(self):
         meta_data = {
-            'state': self.state,
-            'list': self.patch_objs,
+            'state': self.state.value,
+            'list': list(map(PatchObject.to_dict, self.patch_objs)),
             'retries': self.retry,
-            'mark': self.upgrade_mark
+            'mark': self.upgrade_mark,
+            'self_update_version': self.self_update_version
         }
         data_json_str = jsonpickle.encode(meta_data)
         # if not os.path.isfile(self.meta_file_path):
@@ -177,14 +172,18 @@ class PatchManager:
             self.reset_states()
             return 
         meta_data = jsonpickle.decode(json_str)
-        self.state = meta_data['state']
-        self.patch_objs = meta_data['list']
+        self.state = PatchCyclePhase(int(meta_data['state']))
+        self.patch_objs = list(map(PatchObject.from_dict, meta_data['list']))
         self.retry = meta_data['retries']
         self.upgrade_mark = meta_data['mark']
+        self.self_update_version = meta_data['self_update_version']
         self.logger.debug('Loaded state from meta file')
         self.logger.debug('Current Patch Phase: %s', self.state.name)
-        [self.logger.debug(f'Version {patch_obj.version_num}: {patch_obj.status.name}') 
-            for patch_obj in self.patch_objs]
+        try:
+            [self.logger.debug(f'Version {patch_obj.version_num}: {patch_obj.status.name}') 
+                for patch_obj in self.patch_objs]
+        except:
+            pass
 
     def count_retry_once(self):
         self.retry -= 1
