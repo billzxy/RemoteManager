@@ -19,7 +19,6 @@ class InstallManager:
         self.paths = self.settings_manager.get_paths()
         self.fnames = self.settings_manager.get_filenames()
         self.patch_manager.load_meta()
-        self.__check_self_update_follow_up()
     
     def clear_download_cache(self):
         self.logger.info("清除下载缓存")
@@ -300,7 +299,8 @@ class InstallManager:
             self.logger.info("自更替脚本程序启动成功, pid: %s", proc.pid)
             return 1
 
-    def __check_self_update_follow_up(self):
+    def check_self_update_follow_up(self):
+        self.logger.debug("post self update follow up")
         if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_COMPLETE:
             return self.post_installation_cleanup()
         

@@ -46,7 +46,8 @@ class ConfigManager:
             try:
                 section, ini_key = REMOTE_CONF_MAPPING[key]
             except KeyError:
-                self.logger.error("No mapping binded for key: %s", key)
+                self.logger.error("No mapping binded for key: %s, create in QTHZ category", key)
+                config["QTHZ"][key] = item
                 continue
             else:
                 config[section][ini_key] = item

@@ -27,6 +27,7 @@ class ProcessManager:
         self.paths = self.settings_manager.get_paths()
         # self.fs_path = self.paths[FilePath.FS]
         self.qthz_path = self.settings_manager.get_QTHZ_inst_path()
+        self.install_manager.check_self_update_follow_up()
         # self.java_pid_file_path = self.paths[FilePath.JAVA_PID]
         # self.yaml_path = self.paths[FilePath.APP_YML]
         # self.config_path = self.paths[FilePath.CONFIG]
@@ -272,8 +273,9 @@ class ProcessManager:
         if not pid:
             return 0
         try:
-            p = psutil.Process(int(pid))
-            p.terminate()
+            # p = psutil.Process(int(pid))
+            # p.terminate()
+            proc = subprocess.Popen(["taskkill", "/im", "java.exe", "/f"])
         except Exception:
             self.logger.info("未能停止JAVA")
             return 0
@@ -291,7 +293,7 @@ class ProcessManager:
     def start_java(self):
         try:
             # popen 用列表传参数
-            order = ['java', '-jar', self.paths[FilePath.JAR], f'--spring.config.location={self.paths[FilePath.APP_YML]}']
+            order = ['C:\\Program Files\\Java\\jdk1.8.0_144\\jre\\bin\\java.exe', '-jar', self.paths[FilePath.JAR], f'--spring.config.location={self.paths[FilePath.APP_YML]}']
             proc = subprocess.Popen(order, shell=False, creationflags=subprocess.DETACHED_PROCESS)
             self.update_java_pid(proc.pid)
             self.logger.debug("JAVA已启动, pid: %i", proc.pid)
@@ -343,7 +345,8 @@ class ProcessManager:
         yml_data['city-code'] = "${CITY_CODE:" + config["city"]["num"] + "}"
         yml_data['url-port'] = "${ICB-PORT:" + config["host"]["adr"] + "}"
         yml_data['spring']['datasource']['druid']['url'] = f'jdbc:sqlite:{self.qthz_path}\\data\\{config["dbfile"]["name"]}'
-        yml_data['phone-num-encryption'] = config['QTHZ']['phoneEncryption']
+        qthz_category = config['QTHZ']
+        yml_data['phone-num-encryption'] = qthz_category.get('phoneEncryption', 'true')
         self.settings_manager.write_yaml_info(self.paths[FilePath.APP_YML], yml_data)
         self.logger.debug("修改JAR包Spring参数")
     

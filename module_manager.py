@@ -17,6 +17,24 @@ from scheduler.repeating_timer import RepeatingTimer
 from utils.my_logger import logger
 import threading, sys
 
+"""
+程序开始的主体,
+启动BoxRemoteManager为核心框架管理驱动对象
+
+具体功能:
+
+首先执行 @manager 与 @logger 点缀器里的代码, 具体请参考那部分代码
+
+1. 实例化"设置管理"对象(SettingsManager), 并加载配置
+    (注: SettingsManager与ConfigManager的区别在于 Settings是给这个RemoteManager项目的设置, 而Config是给盒子用的配置, 比如FS注册地址之类的)
+2. 初始化日志框架管理(LoggerManager), 配置好日志输出的格式与级别
+
+创建计时器(用于心跳, 自动检查更新)
+
+创建GUI(其实就是个系统托盘), 并且把功能传参进去
+
+创建窗口
+"""
 
 @manager
 @logger

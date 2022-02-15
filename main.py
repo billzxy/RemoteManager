@@ -1,6 +1,9 @@
 from SMWinservice import SMWinservice
 from module_manager import BoxRemoteManager
 
+"""
+暂时被遗弃的将该工具注册为windows服务的代码
+"""
 class RemoteManager(SMWinservice):
 	_svc_name_ = "RemoteManagerService"
 	_svc_display_name_ = "Remote manager tool for callbox"
