@@ -2,6 +2,9 @@ from misc.decorators import manager
 from utils.my_logger import logger
 import rsa
 
+"""
+这个类本来是用来做本地文件加密的, 但是暂时没这个需求, 所以闲置了
+"""
 
 @manager
 @logger

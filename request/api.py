@@ -5,6 +5,13 @@ from misc.exceptions import HttpRequestError, ICBRequestError, FileDownloadError
 
 import requests, json, shutil, traceback, datetime
 
+"""
+这个经理是负责封装API请求底层的
+除了GET POST外, 为每个请求组装请求体(包括appkey的组装), 做返回结果数据的转换, 与错误处理等
+请勿与 RequestManager 搞混, 那个是封装业务方法的, 类似于Java Spring的Service层
+这个偏请求底层一些, 相当于Java Spring的Repository层
+"""
+
 @manager
 @logger
 class APIManager:

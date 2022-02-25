@@ -6,7 +6,11 @@ from misc.exceptions import FileDownloadError, HttpRequestError, ICBRequestError
 from misc.enumerators import GetTasksAPIType, TaskStatusRequestSignal
 from requests_toolbelt import MultipartEncoder
 
+"""
+管理各种请求的, 业务级层面, 入参出参都封装过了, 程序其他地方的流程可以直接用
+不用担心底层请求的handling
 
+"""
 
 @manager
 @logger
@@ -18,7 +22,7 @@ class RequestManager():
         self.host_addr = self.config_manager.get_host_address()
         self.api_prefix = self.config_manager.get_api_prefix()
        
-
+    # 获取版本检查接口的返回结果
     def get_version_check(self):
         version_info = self.config_manager.get_version_info()
         content = self.api_manager.get_version_check(version_info['versionNum'])
@@ -29,12 +33,13 @@ class RequestManager():
             self.logger.debug("upgrade mark: %s, upgrade list: %s", upgrade_mark,
                           upgrade_list)
         return content
-    
 
+    # 下载文件
     def get_file_download(self, version_code, local_filename, fn_set_progress):
         return self.api_manager.get_file_download(version_code, local_filename, fn_set_progress)
 
-    
+    # 获取任务的状态
+    # 入参是枚举 GetTasksAPIType 的任意值
     def get_task_list(self, req_type):
         try:
             content = self.api_manager.get_tasks(req_type) 
@@ -49,6 +54,7 @@ class RequestManager():
             self.logger.debug("获取到的%s任务列表: %s", req_type.value, str(task_list))
             return task_list
 
+    # 请求暂停所有外呼任务
     def post_pause_all_tasks(self):
         try:
             task_ids = self.get_task_list(GetTasksAPIType.UNFINISHED)
@@ -66,7 +72,7 @@ class RequestManager():
         else:
             self.logger.debug("暂停任务请求结果: %s", str(result))
 
-
+    # 请求恢复所有外呼任务
     def post_resume_all_tasks(self):
         try:
             task_ids = self.get_task_list(GetTasksAPIType.PAUSED)
@@ -78,7 +84,7 @@ class RequestManager():
         else:
             self.logger.debug("恢复任务请求结果: %s", str(result))
 
-
+    # 发送心跳包
     def post_heartbeat_info(self, heartbeat_info):
         self.logger.debug('发送心跳包...')
         try:
@@ -94,7 +100,7 @@ class RequestManager():
         self.logger.debug('发送心跳包结果: %s', content)
         return content
 
-
+    # 发送日志(暂时废弃)
     def post_logs_info(self, path, filename):
         auth = {
             'token': self.auth_manager.get_token(),

@@ -19,11 +19,16 @@ FORMAT_PATTERN = '[box_daemon,,,] %(asctime)-15s.%(msecs)d [%(levelname)s] %(pro
 
 TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
+"""
+为全局的日志框架做初始化
 
+"""
 @singleton
 class LoggerManager():
-
+    print("LoggerManager Block")
     def __init__(self):
+        print("LOggerManager init")
+        # 全局只使用一个logger
         self.logger = logging.getLogger("box_helper_common_logger")
         self.settings_manager = SettingsManager()
         self.get_env = self.settings_manager.get_env
@@ -39,6 +44,7 @@ class LoggerManager():
         formatter = logging.Formatter(FORMAT_PATTERN, TIME_FORMAT)
         
         if(to_file):
+            # 配置日志文件自动分页滚动, when='d'表示根据日`day`来做滚动, interval=1表示1天就滚一个文件, backupCount表示保留多少份(天), 由程序配置参数管理
             fileHandler = logging.handlers.TimedRotatingFileHandler('logs/out.log', when='d', interval=1, backupCount=self.log_expiration_days, encoding='utf-8')
             fileHandler.setLevel(level)
             fileHandler.setFormatter(formatter)

@@ -1,6 +1,19 @@
 from jsonpickle.util import in_dict
 from misc.enumerators import VersionInfo, PatchStatus
 
+"""
+远端返回的需要被更新的一个版本的数据, 包含:
+版本码: version_code version_num
+MD5校验码: file_MD5
+更新内容备注: remark
+远端下放的参数(FS配置之类的): argument_config_map
+该版本的更新状态: status (区别于整个更新流程的状态)
+
+注意: 
+这个对象是用来管理需要更新的版本的, 
+一次更新可能需要更新多个版本,
+这个对象的状态status是对应的那些版本的安装状态, 而不是此次更新整体的状态
+"""
 class PatchObject(object):
     def __init__(self, version_data=None):
         self.version_code = version_data[VersionInfo.VCODE.value] if version_data is not None else None

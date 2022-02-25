@@ -4,9 +4,23 @@ from misc.enumerators import FilePath, SettingsCategories, SettingsItems
 from settings.consts import DEFAULT_FILE_TEMPLATE
 from misc.decorators import singleton
 
+"""
+管理本运维工具的设置的经理
+在程序初始化的时候读取settings.ini里的设置, 存在该单例对象内; 
+封装了许多读取设置的方法, 其他类需要用则可以直接调用;
+额外包含了 
+    read_ini_into_config(self, path)
+    write_config_to_ini_file(self, config, filepath)
+    get_yaml_info(self, filepath)
+    write_yaml_info(self, filepath, data)
+四个类方法, 可以帮助.ini和.yml格式的配置文件的读与写
+"""
+
 @singleton
 class SettingsManager():
+    print("SettingsManager Block")
     def __init__(self):
+        print("SettingsManager init")
         self.logger = logging.getLogger("box_helper_common_logger")
         self.logger.info("Starting the settings manager...")
         self.__settings_path = "./settings/settings.ini"

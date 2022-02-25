@@ -8,6 +8,18 @@ from misc.enumerators import Envs, FilePath
 from utils.my_logger import logger
 from lxml import etree
 
+"""
+负责管理盒子配置参数(appkey, access_id, access_key_secret, 盒子版本号等参数)的类
+初始化时候会读取盒子安装根目录下 ./conf/configuation.ini 文件内的参数
+
+除了类似SettingsManager可以读取配置get_config_item_by_mapping(self, key) #用什么key参考REMOTE_CONF_MAPPING
+
+也有api在安装步骤中更新远程配置项到本地: update_remote_config(self, arg_conf_map, version_num, version_code)
+
+还有可以修改FreeSwitch的配置的功能, 操作方式是在 configuration.ini里改变了FreeSwitch的参数以后, 调用save_fs_conf()去应用保存FS配置
+也可以调用update_config(self, new_conf_obj)直接写入, 具体使用方式有兴趣可以研究下源码, 不做赘述了
+"""
+
 @manager
 @logger
 class ConfigManager:

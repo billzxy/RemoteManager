@@ -6,8 +6,11 @@ import random, time
 import traceback
 # static decorators
 
+# 单例点缀器:
+# 这个原理比较简单, 网上拉来的代码, 想要理解它既简单又费脑, 懒得解释了, 反正就是它能实现单例
 # make a certain class singleton, as name suggests
 def singleton(cls):
+    print("singleton: ",cls.__name__)
     instances = {}
     @wraps(cls)
     def _wrapper(*args, **kwargs):
@@ -16,20 +19,25 @@ def singleton(cls):
         return instances[cls]
     return _wrapper
 
+# manager点缀器:
+# 它其实跟上面那个singleton点缀器原理一样, 只是在实例化对象以后, 再添加几个步骤
 def manager(cls):
+    print("manager", cls.__name__)
     instances = {}
-    @wraps(cls)
+    @wraps(cls) # 这个点缀器效果是保留被包裹的类的名称, 否则用了这个@manager点缀器的类, 你获取cls.__name__就会是`_wrapper`而不是原本类名
     def _wrapper(*args, **kwargs):
         if cls not in instances:
-            new_obj = cls(*args, **kwargs)
+            new_obj = cls(*args, **kwargs)  # 这里会将类构造(实例化)为对象
             instances[cls] = new_obj 
+            print("__init__(): ", cls.__name__)
             add_members(new_obj)
             try:
                 new_obj.post_init()
             except:
                 new_obj.logger.debug(f"Post init: {new_obj.module_name}, error: %s", traceback.format_exc())
             else:
-                new_obj.logger.debug(f"{new_obj.module_name} successfully initialized...")
+                print("post_init(): ", cls.__name__)
+                # new_obj.logger.debug(f"{new_obj.module_name} successfully initialized...")
             return new_obj
         return instances[cls]
     return _wrapper

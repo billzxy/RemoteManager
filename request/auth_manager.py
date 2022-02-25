@@ -5,6 +5,12 @@ import traceback, datetime, uuid, hmac, base64, urllib.parse
 
 TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
+"""
+管理请求云平台API所需要的令牌
+
+有一个过期自动获取机制
+"""
+
 @manager
 @logger
 class AuthenticationManager:
@@ -14,8 +20,9 @@ class AuthenticationManager:
     def post_init(self):
         self.acquire_new_token()
 
+    # 调用这个方法可以从出参拿到新的令牌
     def get_token(self):
-        """
+        """ 自行翻译下面注释, 都是我写的
         will compare the current timestamp with expiration timestamp
         if expired, acquire new
         otherwise, use currently saved
@@ -27,10 +34,14 @@ class AuthenticationManager:
 
         return self.__token
     
+    # 获取新的令牌, 存在manager内
     def acquire_new_token(self):
         try:
+            # 拿access id 和 key secret
             keys = self.config_manager.get_keys()
+            # 生成签名和请求参数
             signature, params = self.build_signature_and_query_string(keys['accessId'], keys['accessKeySecret'])
+            # 发出API请求, 拿到令牌和过期时间
             self.__token, expiration_timestamp = self.api_manager.get_user_token(signature, params)
             self.__expiration_timestamp = str(expiration_timestamp)
             # write timestamp to file
@@ -64,6 +75,7 @@ class AuthenticationManager:
             self.logger.error("本地获取时间戳失败, 已重新请求接口获取, 错误原因: %s",
                 traceback.format_exc())
 
+    # 以下都是组装签名和请求字符串用的
     def build_signature_and_query_string(self, key_id, key_secret):
         # dont ask me why, because im closely following the guideline
         # dont tell me there's a better way, as im running out of time

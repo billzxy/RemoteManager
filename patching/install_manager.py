@@ -9,17 +9,24 @@ from gui.winrt_toaster import toast_notification
 import shutil, traceback, time, sqlite3, threading, subprocess
 
 
+"""
+负责更新的安装流程的管理 
+也会记录更新状态
+"""
+
 @manager
 @logger
 class InstallManager:
     def __init__(self):
         pass
 
+    # 初始化的时候会调用patch_manager读取本地保存的更新状态
     def post_init(self):
         self.paths = self.settings_manager.get_paths()
         self.fnames = self.settings_manager.get_filenames()
         self.patch_manager.load_meta()
     
+    # 清除下载的安装包, 整个下载目录清空
     def clear_download_cache(self):
         self.logger.info("清除下载缓存")
         patch_dir = self.settings_manager.get_patch_dir_path()
@@ -32,6 +39,7 @@ class InstallManager:
             self.logger.info("清除完毕")
             toast_notification("证通智能精灵", "清除缓存", "本地下载缓存已经清除")
 
+    # 安装流程的入口
     @with_lock(ThreadLock.INSTALL_UPDATE)
     @with_lock(ThreadLock.HEARTBEAT, blocking=True)
     def install_update(self):
@@ -43,6 +51,8 @@ class InstallManager:
         finally:
             self.logger.debug("安装流程: %s", '完成' if result else '异常') 
 
+    # 安装流程额外的一层Exception handling
+    # 主要是为了保证@with_lock点缀器会在即便出现异常的情况下也能正确释放锁
     def installation_driver(self):
         self.patch_manager.load_meta()
         # extra try-catch block to ensure a lock-release when @with_lock decorator finishes execution
@@ -52,9 +62,12 @@ class InstallManager:
                 toast_notification("证通智能精灵", "软件更新", "暂时没有需要安装的更新噢!")
                 self.logger.info("暂无需要安装的更新")
                 return 1
+            # 正式开始安装更新的流程
+            # 首先要暂停所有外呼任务
             self.pause_all_operations()
             self.logger.info("开始安装更新")
             toast_notification("证通智能精灵", "软件更新", "开始安装软件更新...")
+            # 更新, 然后获取更新结果
             result = self.installation()
         
         except UpdateIsNoGo as nogo:
@@ -68,28 +81,43 @@ class InstallManager:
         else:
             return result    
     
+    # 安装主流程
     def installation(self):
+        # 不同于 patch_manager.update_driver()中的 if-elif判断,
+        # 这里是直接走if判断, 则目前是什么态就会直接走到对应的步骤, 
+        # 然后走完以后立刻更新状态, 直接走到下一个对应的流程内
+
+        # 等待安装PENDING态, 表示已经可以开始安装， 然后进行备份操作
         if self.patch_manager.state == PatchCyclePhase.PENDING:
             result = self.create_backup()
+        # 备份完毕后, 进行文件的更替
         if self.patch_manager.state == PatchCyclePhase.BACKUP_CREATED:
             result = self.replace_files()
+        # 如果检测到有需要对本程序的可执行进行更替的话(自更新), 开始自更新流程
         if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_PENDING:
             result = self.commence_self_update()
+        # 如果出现异常, 需要全部回滚, 则将更新流程状态改为"准备安装PENDING"
+        # 且将所有需要安装的子版本的状态全部改为"下载完成DOWNLOADED"
         if self.patch_manager.state == PatchCyclePhase.ROLLEDBACK:
             # TODO: do something to mitigate the aftermath
+            # 暂时还没有安装更新失败后的弥补措施, 目前仅是退回准备安装状态
+            # 然后需要手动触发再次安装
             for index, _ in enumerate(self.patch_manager.patch_objs):
                 patch_obj = self.patch_manager.patch_objs[index]
                 patch_obj.status = PatchStatus.DOWNLOADED
             self.patch_manager.preserve_installation_state(PatchCyclePhase.PENDING)
             self.logger.info("可尝试再次安装")
             self.resume_all_operations()
+        # 如果文件已经更替完成, 则开始进行安装后的清理与收尾工作
         if self.patch_manager.state == PatchCyclePhase.FILES_UPDATED:
             result = self.post_installation_cleanup()
-        if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_COMPLETE:
-            result = self.__check_self_update_follow_up()
+        # 如果状态是自更新安装完成, 则进行后续事宜处理
+        # if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_COMPLETE:
+        #     # result = self.__check_self_update_follow_up()
         
         return result
 
+    # 备份文件的操作
     def create_backup(self):
         try:
             self.logger.info("文件备份中")
@@ -111,6 +139,7 @@ class InstallManager:
             self.patch_manager.preserve_installation_state(PatchCyclePhase.BACKUP_CREATED)
             return 1
 
+    # 恢复备份
     def revert_backup(self, patch_objs):
         for index, _ in enumerate(patch_objs):
             patch_obj = patch_objs[index]
@@ -137,6 +166,7 @@ class InstallManager:
     def replace_files(self):
         self.logger.debug("开始文件更替")
         patch_objs = self.patch_manager.patch_objs
+        # 获取到每个子版本的信息, 进行遍历安装
         for index, patch_obj in enumerate(patch_objs):
             if not patch_obj.status == PatchStatus.DOWNLOADED:
                 continue
@@ -165,10 +195,12 @@ class InstallManager:
         self.logger.info("各个版本遍历安装完成")
         return 1
 
+    # 对一个子版本进行安装
     def replace_one_version(self, patch_obj):
         arg_conf_map = patch_obj.argument_config_map
         version_num = patch_obj.version_num
         version_code = patch_obj.version_code
+        # 用version_num组装出安装文件的路径, 安装包就被解压在该处
         patch_dir_path = "%s\\%s" %(self.settings_manager.get_patch_dir_path(),version_num)
         qthz_path = self.settings_manager.get_QTHZ_inst_path()
         
@@ -191,6 +223,15 @@ class InstallManager:
             self.logger.debug("更替YAML配置文件完成")
 
         #self-update
+        # 自更新的部分:
+        # 自更新会检查有没有 
+        # start.exe(启动盒子的程序), updater.exe(自更新协助程序), settings.ini(本程序设置文件), 或 entrypoint.exe(本程序)
+        # 如果有的话 会更替start.exe, updater.exe
+        # 新的settings.ini会被读取出来 将其中的配置项修改或者新增写入本地settings.ini
+        # 如果需要更替entrypoint.exe, 由于本程序还在运行, windows不允许操作本程序的源文件
+        # 因此仅此是在本次更新流程中做个记录, 记在patch_manager的self_update_version字段下
+        # 后续操作再会读出这个字段进行判断
+
         #start.exe
         start_exe_path = patch_dir_path+self.fnames[FilePath.STARTER]
         if exists(start_exe_path):
@@ -237,6 +278,9 @@ class InstallManager:
         # TODO: replace lua scripts
         
         # overwrite configuration.ini
+        # 这一步会将远程下发的配置写入 configuration.ini 
+        # 然后当更新流程进入最后收尾的时候, post_installation_cleanup()
+        # 再调用config_manager的save_fs_conf()去将配置写入FS的XML配置文件内
         self.config_manager.update_remote_config(arg_conf_map, version_num, version_code)
     
     def update_sqlite_db(self, patch_dir_path, qthz_path, arg_conf_map):
@@ -304,7 +348,11 @@ class InstallManager:
         if self.patch_manager.state == PatchCyclePhase.SELF_UPDATE_COMPLETE:
             return self.post_installation_cleanup()
         
-
+    # 当安装全部完成以后, 进行配置的应用
+    # 远程下发的FS的配置在安装的时候会先写入到configuration.ini, 然后在这里会
+    # 调用config_manager.save_fs_conf()去再写入到FS安装目录下的XML配置文件里,
+    # 由于此时FS进程是处于停止状态, 所以可以修改
+    # 然后再在resume_all_operations()里启动FS, 就是完整的FS配置修改流程
     def post_installation_cleanup(self):
         # when all installation(including self-update) finished
         if(len(self.patch_manager.patch_objs)>0):
@@ -321,14 +369,16 @@ class InstallManager:
         self.patch_manager.preserve_installation_state(PatchCyclePhase.READY)
         return 1
 
+
+    # 暂停盒子正在拨打的任务
     def pause_all_operations(self):
         self.logger.debug("Halting all operations, triggering killswitch in...")
 
-        # 请求任务暂停接口, 会阻塞重试, 之后抛 No Go 信号
+        # 请求任务暂停接口, 会阻塞重试; 如果失败, 抛 No Go 信号, 终止更新
         self.request_manager.post_pause_all_tasks()
 
-        # 调取FS呼出状态, 会阻塞重试, 之后抛No Go 信号
-        self.process_manager.freeswith_call_status()
+        # 调取FS呼出状态, 会阻塞重试; 如果FS还在打电话, 抛No Go 信号, 终止更新
+        self.process_manager.get_fs_call_status()
 
         # 停止Java和FS服务, 同步
         self.process_manager.stop_freeswitch()
